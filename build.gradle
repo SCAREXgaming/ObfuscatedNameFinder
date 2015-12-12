@@ -1,0 +1,141 @@
+import org.apache.tools.ant.filters.FixCrLfFilter
+import org.apache.tools.ant.filters.ReplaceTokens
+
+def filteredSourceDir = file("${buildDir}/filtered")
+
+group 'fr.scarex'
+version '1.2'
+
+apply plugin: 'java'
+apply plugin: 'eclipse'
+
+jar {
+    manifest {
+        attributes "Main-Class": "fr.scarex.onf.ObfuscatedNameFinder"
+    }
+}
+
+sourceCompatibility = 1.8
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+task processVersion(type: Copy) {
+    from sourceSets.main.java
+    into filteredSourceDir
+    // Substitute property references in files
+    // Use some of the filters provided by Ant
+    filter(FixCrLfFilter)
+    filter(ReplaceTokens, tokens: ['version': version])
+    // Use a closure to filter each line
+    filter { String line ->
+        line = line.replaceAll('"=onf_version="', '"'+version+'"')
+    }
+}
+
+task cleanFilteredDir(type: Delete) {
+    delete filteredSourceDir
+}
+processVersion.dependsOn('cleanFilteredDir')
+
+task wrapper(type: Wrapper) {
+    gradleVersion = '2.2.1'
+}
+
+//force UTF-8 to the compileJava task
+compileJava {
+    options.encoding = 'UTF-8'
+    source = filteredSourceDir
+}
+
+compileJava.dependsOn processVersion
+
+// Config
+
+ext.privateConfigFile = file 'private.properties'
+
+privateConfigFile.withReader {
+    def p = new Properties()
+    p.load(it)
+    project.ext.privateConfig = new ConfigSlurper().parse p
+}
+
+// Upload
+
+configurations {
+    ftpAntTask
+}
+
+dependencies {
+    ftpAntTask("org.apache.ant:ant-commons-net:1.9.4") {
+        module("commons-net:commons-net:1.4.1") {
+            dependencies "oro:oro:2.0.8:jar"
+        }
+    }
+}
+
+void ftp(Map args, Closure antFileset = {}) {
+    ant {
+        taskdef(name: 'ftp',
+                classname: 'org.apache.tools.ant.taskdefs.optional.net.FTP',
+                classpath: configurations.ftpAntTask.asPath)
+        Map ftpArgs = args + [
+                               verbose : 'yes',
+                               server  : privateConfig.ftp_adress,
+                               userid  : privateConfig.ftp_user,
+                               password: privateConfig.ftp_pw
+        ]
+        delegate.ftp(ftpArgs) {
+            antFileset.delegate = delegate
+            antFileset()
+        }
+    }
+}
+
+task upload() << {
+    ftp(action: 'mkdir', remotedir: "repo/fr/scarex/${archivesBaseName}/${version}")
+    ftp(action: 'send', remotedir: "repo/fr/scarex/${archivesBaseName}/${version}") {
+        fileset(dir: "$buildDir/libs") {
+            include(name: "${archivesBaseName}-${version}*.jar")
+        }
+    }
+}
+
+task mavenUpload(dependsOn: 'publish') << {
+    ftp(action: 'mkdir', remotedir: "repo")
+    ftp(action: 'send', remotedir: "repo") {
+        fileset(dir: "$buildDir/repo")
+    }
+}
+
+task sourceJar(type: Jar) {
+    from sourceSets.main.allSource
+    classifier = 'sources'
+}
+
+artifacts {
+    archives sourceJar
+    archives jar
+}
+
+tasks.build.dependsOn('sourceJar')
+
+apply plugin: 'maven-publish'
+
+publishing {
+    publications {
+        java(MavenPublication) {
+            artifact jar
+        }
+        sources(MavenPublication) {
+            artifact sourceJar
+        }
+    }
+    repositories {
+        maven {
+            url "$buildDir/repo"
+        }
+    }
+}
