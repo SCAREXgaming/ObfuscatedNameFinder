@@ -1,10 +1,14 @@
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.filters.ReplaceTokens
 
+plugins {
+    id "co.riiid.gradle" version "0.4.2"
+}
+
 def filteredSourceDir = file("${buildDir}/filtered")
 
 group 'fr.scarex'
-version '1.2'
+version '1.3'
 
 apply plugin: 'java'
 apply plugin: 'eclipse'
@@ -18,6 +22,7 @@ jar {
 sourceCompatibility = 1.8
 
 repositories {
+    jcenter()
     mavenCentral()
     mavenLocal()
 }
@@ -52,6 +57,17 @@ compileJava {
 
 compileJava.dependsOn processVersion
 
+task sourceJar(type: Jar) {
+    from sourceSets.main.allSource
+    classifier = 'sources'
+}
+
+artifacts {
+    archives sourceJar
+}
+
+tasks.build.dependsOn sourceJar
+
 // Config
 
 ext.privateConfigFile = file 'private.properties'
@@ -62,80 +78,19 @@ privateConfigFile.withReader {
     project.ext.privateConfig = new ConfigSlurper().parse p
 }
 
-// Upload
 
-configurations {
-    ftpAntTask
+// Github release
+
+def artifactsFiles = new String[0]
+
+configurations.archives.allArtifacts.forEach {
+    artifactsFiles += relativePath(it.getFile()).replace("\\", "/")
 }
 
-dependencies {
-    ftpAntTask("org.apache.ant:ant-commons-net:1.9.4") {
-        module("commons-net:commons-net:1.4.1") {
-            dependencies "oro:oro:2.0.8:jar"
-        }
-    }
-}
-
-void ftp(Map args, Closure antFileset = {}) {
-    ant {
-        taskdef(name: 'ftp',
-                classname: 'org.apache.tools.ant.taskdefs.optional.net.FTP',
-                classpath: configurations.ftpAntTask.asPath)
-        Map ftpArgs = args + [
-                               verbose : 'yes',
-                               server  : privateConfig.ftp_adress,
-                               userid  : privateConfig.ftp_user,
-                               password: privateConfig.ftp_pw
-        ]
-        delegate.ftp(ftpArgs) {
-            antFileset.delegate = delegate
-            antFileset()
-        }
-    }
-}
-
-task upload() << {
-    ftp(action: 'mkdir', remotedir: "repo/fr/scarex/${archivesBaseName}/${version}")
-    ftp(action: 'send', remotedir: "repo/fr/scarex/${archivesBaseName}/${version}") {
-        fileset(dir: "$buildDir/libs") {
-            include(name: "${archivesBaseName}-${version}*.jar")
-        }
-    }
-}
-
-task mavenUpload(dependsOn: 'publish') << {
-    ftp(action: 'mkdir', remotedir: "repo")
-    ftp(action: 'send', remotedir: "repo") {
-        fileset(dir: "$buildDir/repo")
-    }
-}
-
-task sourceJar(type: Jar) {
-    from sourceSets.main.allSource
-    classifier = 'sources'
-}
-
-artifacts {
-    archives sourceJar
-    archives jar
-}
-
-tasks.build.dependsOn('sourceJar')
-
-apply plugin: 'maven-publish'
-
-publishing {
-    publications {
-        java(MavenPublication) {
-            artifact jar
-        }
-        sources(MavenPublication) {
-            artifact sourceJar
-        }
-    }
-    repositories {
-        maven {
-            url "$buildDir/repo"
-        }
-    }
+github {
+    owner = 'SCAREXgaming'
+    repo = rootProject.name
+    token = privateConfig.github_token
+    tagName = version
+    assets = artifactsFiles
 }

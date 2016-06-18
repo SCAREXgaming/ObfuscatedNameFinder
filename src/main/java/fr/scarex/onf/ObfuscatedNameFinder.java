@@ -12,6 +12,7 @@ import java.io.FileReader;
 import java.io.FilenameFilter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 
 import javax.swing.DefaultComboBoxModel;
 import javax.swing.DefaultListCellRenderer;
@@ -30,7 +31,7 @@ public class ObfuscatedNameFinder extends JFrame implements ActionListener
 {
     private static final long serialVersionUID = -2491818253733758141L;
     public static final String VERSION = "=onf_version=";
-    public ArrayList<File> forgeVersions = new ArrayList<File>();
+    public ArrayList<File> mappings = new ArrayList<File>();
     public JComboBox<File> versionList;
     public JTextField fieldName = new JTextField(16);
     public JCheckBox fieldObfuscatedType = new JCheckBox("Obfuscated");
@@ -61,15 +62,16 @@ public class ObfuscatedNameFinder extends JFrame implements ActionListener
     private void findForgeVersions() {
         String gradleLocation = this.getGradleLocation();
         System.out.println(gradleLocation + " - " + System.getProperty("user.home"));
-        File versionLocation = new File(gradleLocation, "caches/minecraft/net/minecraftforge/forge");
+        File versionLocation = new File(gradleLocation, "caches/minecraft/de/oceanlabs/mcp/mcp_snapshot");
         for (File f : versionLocation.listFiles(new FilenameFilter() {
             @Override
             public boolean accept(File dir, String name) {
                 return dir.isDirectory();
             }
         })) {
-            this.forgeVersions.add(f);
+            this.mappings.add(f);
         }
+        Collections.reverse(this.mappings);
     }
 
     private String getGradleLocation() {
@@ -104,11 +106,7 @@ public class ObfuscatedNameFinder extends JFrame implements ActionListener
     public void actionPerformed(ActionEvent e) {
         if (e.getSource() == this.typeList) {
             try {
-                ArrayList<String[]> data = new ArrayList<String[]>();
-                if (this.forgeVersions.get(this.versionList.getSelectedIndex()).getName().startsWith("1.8"))
-                    data = parseCSV(new File(this.getGradleLocation(), "caches/minecraft/de/oceanlabs/mcp/mcp_snapshot/" + (new File(this.forgeVersions.get(this.versionList.getSelectedIndex()), "snapshot")).list()[0] + "/" + ((String) this.typeList.getSelectedItem()) + ".csv"));
-                else
-                    data = parseCSV(new File(this.forgeVersions.get(this.versionList.getSelectedIndex()), "unpacked/conf/" + ((String) this.typeList.getSelectedItem()) + ".csv"));
+                ArrayList<String[]> data = parseCSV(new File(this.mappings.get(this.versionList.getSelectedIndex()), ((String) this.typeList.getSelectedItem()) + ".csv"));
                 this.csvData.clear();
                 for (String[] s : data) {
                     boolean flag = false;
@@ -184,48 +182,48 @@ public class ObfuscatedNameFinder extends JFrame implements ActionListener
 
         public FileComboBoxModel() {
             super();
-            if (forgeVersions.size() > 0) this.setSelectedItem(forgeVersions.get(0));
+            if (mappings.size() > 0) this.setSelectedItem(mappings.get(0));
         }
 
         @Override
         public int getSize() {
-            return forgeVersions.size();
+            return mappings.size();
         }
 
         @Override
         public File getElementAt(int index) {
-            return forgeVersions.get(index);
+            return mappings.get(index);
         }
 
         @Override
         public int getIndexOf(Object anObject) {
-            return forgeVersions.indexOf(anObject);
+            return mappings.indexOf(anObject);
         }
 
         @Override
         public void addElement(File anObject) {
-            forgeVersions.add(anObject);
+            mappings.add(anObject);
         }
 
         @Override
         public void insertElementAt(File anObject, int index) {
-            forgeVersions.add(index, anObject);
+            mappings.add(index, anObject);
             ;
         }
 
         @Override
         public void removeElementAt(int index) {
-            forgeVersions.remove(index);
+            mappings.remove(index);
         }
 
         @Override
         public void removeElement(Object anObject) {
-            forgeVersions.remove(anObject);
+            mappings.remove(anObject);
         }
 
         @Override
         public void removeAllElements() {
-            forgeVersions.clear();
+            mappings.clear();
         }
     }
 
