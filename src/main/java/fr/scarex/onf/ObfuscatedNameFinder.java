@@ -71,6 +71,15 @@ public class ObfuscatedNameFinder extends JFrame implements ActionListener
         })) {
             this.mappings.add(f);
         }
+        versionLocation = new File(gradleLocation, "caches/minecraft/de/oceanlabs/mcp/mcp_stable");
+        for (File f : versionLocation.listFiles(new FilenameFilter() {
+            @Override
+            public boolean accept(File dir, String name) {
+                return dir.isDirectory();
+            }
+        })) {
+            this.mappings.add(f);
+        }
         Collections.reverse(this.mappings);
     }
 
@@ -234,7 +243,8 @@ public class ObfuscatedNameFinder extends JFrame implements ActionListener
         @Override
         public Component getListCellRendererComponent(JList<?> list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
             Component c = super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
-            setText(((File) value).getName());
+            File f = (File) value;
+            setText(f.getParent().substring(f.getParent().indexOf('_') + 1) + "_" + f.getName());
             return c;
         }
     }
